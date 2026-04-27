@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GradeFlow | Predict Your Success</title>
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#e500e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GradeFlow">
+    <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=GF&background=e500e5&color=fff&size=192">
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container" id="app-container" style="display:none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="logo-text">GradeFlow</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" onclick="showDashboard(event)">
+                    <i class="fas fa-border-all"></i> DASHBOARD
+                </a>
+                <a href="#assessments-container" class="nav-item" onclick="scrollToSection(event, 'dashboard-bars')">
+                    <i class="fas fa-chart-bar"></i> VELOCITY
+                </a>
+                <a href="#spider-card" class="nav-item insights-btn" onclick="scrollToSection(event, 'spider-card')">
+                    <i class="fas fa-spider"></i> SPIDER-SENSE
+                </a>
+            </nav>
+            <div class="sidebar-bottom">
+                <div class="multiverse-box">
+                    <span class="small-text">CURRENT MULTIVERSE</span>
+                    <div class="bold-text" id="theme-name">Academic Earth-65</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-scroll-area">
+            <!-- Topbar -->
+            <header class="topbar">
+                <div class="top-nav">
+                    <a href="#" class="active" onclick="showDashboard(event)">Dashboard</a>
+                    <a href="#" onclick="showAllAssessments(event)">All Assessments</a>
+                </div>
+                <div class="top-actions">
+                    <i class="fas fa-moon" id="theme-toggle" title="Toggle Miles Morales Mode"></i>
+                    <div class="user-profile-wrapper">
+                        <div class="user-avatar" onclick="toggleProfileMenu(event)">
+                            <img src="https://ui-avatars.com/api/?name=User&background=random" id="nav-user-photo" alt="User">
+                        </div>
+                        <div class="profile-dropdown" id="profile-dropdown">
+                            <div class="dropdown-header">
+                                <strong id="dropdown-name">User</strong>
+                                <span id="dropdown-email" class="text-xs text-muted">@username</span>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" onclick="showProfileView(event)"><i class="fas fa-user"></i> My Profile</a>
+                            <a href="#" onclick="logoutUser(event)" class="text-danger"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view-section active">
+                <div class="top-widgets">
+                    <!-- Academic Pulse -->
+                    <div class="card pulse-card">
+                        <div class="card-header">
+                            <h3 class="magenta-text">Academic Pulse</h3>
+                            <p id="pulse-desc">Deep-dive into your performance metrics based on your actual logged grades.</p>
+                        </div>
+                        <div class="pulse-stats">
+                            <div class="stat-box">
+                                <span class="label">OVERALL AVG</span>
+                                <span class="value" id="overall-avg">-</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">COMPLETION</span>
+                                <span class="value success" id="overall-completion">0%</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">SUBJECTS</span>
+                                <span class="value" id="overall-subjects">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Predicted Final GPA -->
+                    <div class="card gpa-card dark-card">
+                        <div class="gpa-content">
+                            <span class="label cyan-text">CURRENT OVERALL GPA</span>
+                            <div class="gpa-value"><span id="gpa-value">0.00</span> <span class="accuracy-badge">LIVE DATA</span></div>
+                            <button class="btn btn-magenta" onclick="document.getElementById('subjects-container').scrollIntoView({behavior: 'smooth'})">VIEW SUBJECTS</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="middle-widgets">
+                    <div class="card spider-card" id="spider-card">
+                        <h3><i class="fas fa-spider magenta-text"></i> Spider-Sense Skills</h3>
+                        <div class="radar-container" id="radar-container">
+                            <svg viewBox="0 0 100 100" class="radar-svg">
+                                <polygon points="50,5 95,38 77,95 23,95 5,38" fill="none" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <polygon points="50,25 75,45 65,75 35,75 25,45" fill="none" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <line x1="50" y1="50" x2="50" y2="5" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <line x1="50" y1="50" x2="95" y2="38" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <line x1="50" y1="50" x2="77" y2="95" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <line x1="50" y1="50" x2="23" y2="95" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <line x1="50" y1="50" x2="5" y2="38" stroke="var(--text-muted)" stroke-width="0.5"/>
+                                <polygon id="radar-data-poly" points="50,50 50,50 50,50 50,50 50,50" fill="var(--magenta-light)" stroke="var(--magenta)" stroke-width="2" opacity="0.8"/>
+                                <text x="50" y="3" font-size="4" text-anchor="middle" fill="var(--text-main)" font-weight="bold">MASTERY</text>
+                                <text x="96" y="38" font-size="4" text-anchor="start" fill="var(--text-main)" font-weight="bold">TARGET GAP</text>
+                                <text x="78" y="98" font-size="4" text-anchor="middle" fill="var(--text-main)" font-weight="bold">MOMENTUM</text>
+                                <text x="22" y="98" font-size="4" text-anchor="middle" fill="var(--text-main)" font-weight="bold">CONSISTENCY</text>
+                                <text x="4" y="38" font-size="4" text-anchor="end" fill="var(--text-main)" font-weight="bold">COMPLETION</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="card velocity-card">
+                        <div class="velocity-header">
+                            <h3><i class="fas fa-chart-bar cyan-text"></i> Grade Velocity</h3>
+                            <div class="tags">
+                                <span class="tag dark">LIVE</span>
+                            </div>
+                        </div>
+                        <div class="bar-chart" id="dashboard-bars">
+                            <!-- Injected by JS -->
+                        </div>
+                        <div class="velocity-footer" style="display:flex; justify-content:space-between; font-size: 0.8rem;">
+                            <p style="font-style:italic; color:var(--text-muted);" id="velocity-quote">"Keep pushing your limits."</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subjects-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <h2 style="font-size:1.5rem; font-weight:800; font-style:italic;">YOUR SUBJECTS</h2>
+                    </div>
+                    <div class="subjects-grid" id="subjects-container">
+                        <!-- Subject Cards injected here -->
+                    </div>
+                    <button class="fab-btn" onclick="openSubjectModal()"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+
+            <!-- Profile View -->
+            <div id="profile-view" class="view-section" style="display: none;">
+                <div class="subject-header">
+                    <div>
+                        <h1>YOUR PROFILE</h1>
+                        <p>Manage your identity across the multiverse.</p>
+                    </div>
+                </div>
+                <div class="card solid-border" style="max-width: 800px; margin: 0 auto;">
+                    <form id="profile-form">
+                        <div style="display:flex; gap:2rem; align-items:flex-start;">
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:1rem;">
+                                <img id="profile-edit-photo" src="" style="width:120px; height:120px; border-radius:50%; border:3px solid var(--black); object-fit:cover;">
+                                <div class="form-group" style="width:100%;">
+                                    <label>Photo URL</label>
+                                    <input type="text" id="prof-photo_url" placeholder="https://...">
+                                </div>
+                            </div>
+                            <div style="flex:1;">
+                                <div class="form-row">
+                                    <div class="form-group"><label>Name</label><input type="text" id="prof-name"></div>
+                                    <div class="form-group"><label>Email</label><input type="email" id="prof-email"></div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group"><label>Age</label><input type="number" id="prof-age"></div>
+                                    <div class="form-group"><label>Class/Grade</label><input type="text" id="prof-class"></div>
+                                    <div class="form-group">
+                                        <label>Gender</label>
+                                        <input type="text" id="prof-gender">
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-magenta mt-4 w-100"><i class="fas fa-save"></i> UPDATE PROFILE</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Subject Detail View -->
+            <div id="subject-detail-view" class="view-section" style="display: none;">
+                <button class="btn btn-white" style="margin-bottom: 1rem;" onclick="showDashboard(event)"><i class="fas fa-arrow-left"></i> BACK TO DASHBOARD</button>
+                <div class="subject-header">
+                    <div>
+                        <span class="tag cyan-bg" id="detail-subject-tag">SUBJ</span>
+                        <h1 id="detail-subject-name">SUBJECT NAME</h1>
+                        <p id="detail-subject-target">Target Grade: --%</p>
+                    </div>
+                    <div class="subject-top-stats">
+                        <div class="stat-box solid-border">
+                            <span class="label">CURRENT GRADE</span>
+                            <span class="value magenta-text" id="detail-current-grade">--%</span>
+                        </div>
+                        <button class="btn btn-danger" style="align-self: center; height: 100%; border: 2px solid var(--black);" onclick="deleteCurrentSubject()"><i class="fas fa-trash"></i> DELETE SUBJECT</button>
+                    </div>
+                </div>
+
+                <div class="subject-content-grid">
+                    <div class="assessments-column">
+                        <div class="section-title-row">
+                            <h2>Assessments</h2>
+                        </div>
+                        <div class="assessments-list" id="assessments-container">
+                            <!-- Assessments injected here -->
+                        </div>
+                        <div class="add-assessment-box" onclick="openAssessmentModal()">
+                            <i class="fas fa-plus"></i> Add New Assessment
+                        </div>
+                    </div>
+
+                    <div class="predictor-column">
+                        <div class="card predictor-card magenta-bg">
+                            <h3><i class="fas fa-rocket"></i> GRADE PREDICTOR</h3>
+                            <div id="predictor-info"></div>
+                        </div>
+
+                        <div class="card solid-border mt-4">
+                            <h3><i class="fas fa-lightbulb magenta-text"></i> Focus Areas</h3>
+                            <ul class="bullet-list" id="dynamic-focus-areas"></ul>
+                            <div style="margin-top: 1rem; border-top: 2px dashed var(--black); padding-top: 1rem;">
+                                <div style="display:flex; justify-content:space-between; font-size: 0.7rem; font-weight:700;">
+                                    <span>PROGRESS</span>
+                                    <span class="magenta-text" id="subject-progress-text">0%</span>
+                                </div>
+                                <div style="height:8px; display:flex; gap: 4px; margin-top:0.5rem;" id="subject-progress-bars">
+                                    <div style="flex:1; border:1px solid var(--black);"></div>
+                                    <div style="flex:1; border:1px solid var(--black);"></div>
+                                    <div style="flex:1; border:1px solid var(--black);"></div>
+                                    <div style="flex:1; border:1px solid var(--black);"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- All Assessments View -->
+            <div id="all-assessments-view" class="view-section" style="display: none;">
+                <div class="subject-header">
+                    <div>
+                        <h1>ALL ASSESSMENTS</h1>
+                        <p>A chronological view of your entire workload.</p>
+                    </div>
+                </div>
+                <div class="assessments-list" id="all-assessments-container">
+                    <!-- Assessments injected here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Auth View (Login/Register) -->
+    <div class="auth-container" id="auth-container">
+        <div class="auth-box card solid-border">
+            <div class="logo text-center mb-4" style="padding:0;">
+                <span class="logo-text glitch-text" data-text="GradeFlow">GradeFlow</span>
+            </div>
+            
+            <div class="auth-tabs">
+                <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">LOGIN</div>
+                <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">REGISTER</div>
+            </div>
+
+            <div id="login-form-wrapper">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label>USERNAME</label>
+                        <input type="text" id="login-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>PASSWORD</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-magenta w-100 mt-4"><i class="fas fa-sign-in-alt"></i> LOGIN</button>
+                    <p id="login-error" class="text-danger mt-2 text-center text-sm" style="display:none;"></p>
+                </form>
+            </div>
+
+            <div id="register-form-wrapper" style="display:none;">
+                <form id="register-form">
+                    <div class="form-group">
+                        <label>USERNAME</label>
+                        <input type="text" id="reg-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>PASSWORD</label>
+                        <input type="password" id="reg-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-cyan w-100 mt-4"><i class="fas fa-user-plus"></i> REGISTER</button>
+                    <p id="reg-error" class="text-danger mt-2 text-center text-sm" style="display:none;"></p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="subject-modal" class="modal">
+        <div class="modal-content solid-border">
+            <button class="close-btn" onclick="closeSubjectModal()"><i class="fas fa-times"></i></button>
+            <h2 class="glitch-text" data-text="NEW SUBJECT">NEW SUBJECT</h2>
+            <p class="magenta-text text-sm mb-4" style="font-size:0.75rem; font-weight:700; letter-spacing:1px; margin-bottom:1.5rem;">INITIATING CURRICULUM ENTRY...</p>
+            
+            <form id="add-subject-form">
+                <div class="form-group">
+                    <label><i class="fas fa-book"></i> SUBJECT NAME</label>
+                    <input type="text" id="subject-name" placeholder="e.g., Quantum Mechanics" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fas fa-bullseye"></i> TARGET GRADE (%)</label>
+                        <input type="number" id="target-grade" placeholder="95" step="0.1" min="0" max="100" required>
+                    </div>
+                </div>
+                <div class="form-actions mt-4">
+                    <button type="button" class="btn btn-cyan" onclick="closeSubjectModal()">CANCEL</button>
+                    <button type="submit" class="btn btn-magenta"><i class="fas fa-bolt"></i> DEPLOY</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="assessment-modal" class="modal">
+        <div class="modal-content solid-border">
+            <button class="close-btn" onclick="closeAssessmentModal()"><i class="fas fa-times"></i></button>
+            <h2 class="glitch-text" id="modal-title" data-text="NEW ASSESSMENT">NEW ASSESSMENT</h2>
+            <p class="magenta-text" style="font-size:0.75rem; font-weight:700; letter-spacing:1px; margin-bottom:1.5rem;">LOGGING EVALUATION DATA...</p>
+            
+            <form id="assessment-form">
+                <input type="hidden" id="modal-assessment-id">
+                <input type="hidden" id="modal-assessment-subject-id">
+                <div class="form-group">
+                    <label>ASSESSMENT NAME</label>
+                    <input type="text" id="assessment-name" placeholder="e.g. Midterm 1" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>WEIGHT (%)</label>
+                        <input type="number" id="assessment-weight" placeholder="30" step="0.1" min="0" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label>SCORE (%) (Optional)</label>
+                        <input type="number" id="assessment-score" placeholder="85" step="0.1" min="0" max="100">
+                    </div>
+                </div>
+                <div class="form-actions mt-4">
+                    <button type="button" class="btn btn-danger" id="delete-assessment-btn" onclick="deleteCurrentAssessment()" style="display:none;"><i class="fas fa-trash"></i> DELETE</button>
+                    <button type="button" class="btn btn-cyan" onclick="closeAssessmentModal()">CANCEL</button>
+                    <button type="submit" class="btn btn-magenta"><i class="fas fa-save"></i> SAVE</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>

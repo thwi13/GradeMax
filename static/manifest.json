@@ -1,0 +1,21 @@
+{
+  "name": "GradeFlow Predictor",
+  "short_name": "GradeFlow",
+  "description": "A neo-brutalism academic grade tracker and predictor.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#e500e5",
+  "icons": [
+    {
+      "src": "https://ui-avatars.com/api/?name=GF&background=e500e5&color=fff&size=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://ui-avatars.com/api/?name=GF&background=e500e5&color=fff&size=512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
