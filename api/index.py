@@ -5,7 +5,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure the root directory is in path so Flask can find templates/ and static/
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
 
@@ -14,222 +13,241 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
-# Tell Flask where templates and static files live (one level up from api/)
 app = Flask(__name__,
             template_folder=os.path.join(root_dir, 'templates'),
             static_folder=os.path.join(root_dir, 'static'))
 
-app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-gradeflow-key')
+app.secret_key = os.environ.get('SECRET_KEY', 'gradeflow-secret-2025-xk92')
 
-# Build database URL
-db_url = os.environ.get('DATABASE_URL', '')
-if not db_url:
-    # Fallback: use /tmp for SQLite on Vercel (writable directory)
+# ── Database URL ──────────────────────────────────────────────────────────────
+raw_url = os.environ.get('DATABASE_URL', '')
+
+if not raw_url:
     db_url = 'sqlite:////tmp/grades.db'
-    logger.warning('DATABASE_URL not set, using /tmp/grades.db (data will not persist!)')
-elif db_url.startswith('postgres://'):
-    db_url = db_url.replace('postgres://', 'postgresql+pg8000://', 1)
-elif db_url.startswith('postgresql://') and '+pg8000' not in db_url:
-    db_url = db_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+    logger.warning('No DATABASE_URL set — using /tmp/grades.db (non-persistent)')
+elif raw_url.startswith('postgres://'):
+    db_url = raw_url.replace('postgres://', 'postgresql+pg8000://', 1)
+elif raw_url.startswith('postgresql://') and '+pg8000' not in raw_url:
+    db_url = raw_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+else:
+    db_url = raw_url
 
-logger.info(f'Using database: {db_url[:30]}...')
+logger.info(f'DB: {db_url[:40]}...')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
-    'pool_recycle': 300,
-    'connect_args': {} if 'sqlite' in db_url else {'timeout': 10},
+    'pool_recycle': 280,
 }
+
 db = SQLAlchemy(app)
 
+# ── Models ────────────────────────────────────────────────────────────────────
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
+    __tablename__ = 'users'
+    id            = db.Column(db.Integer, primary_key=True)
+    username      = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    name = db.Column(db.String(100))
-    email = db.Column(db.String(100))
-    age = db.Column(db.Integer)
+    name          = db.Column(db.String(100))
+    email         = db.Column(db.String(100))
+    age           = db.Column(db.Integer)
     student_class = db.Column(db.String(50))
-    gender = db.Column(db.String(20))
-    photo_url = db.Column(db.String(200))
-    subjects = db.relationship('Subject', backref='user', cascade='all, delete-orphan')
+    gender        = db.Column(db.String(20))
+    photo_url     = db.Column(db.String(500))
+    subjects      = db.relationship('Subject', backref='user', cascade='all, delete-orphan')
 
 class Subject(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
+    __tablename__ = 'subjects'
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name         = db.Column(db.String(100), nullable=False)
     target_grade = db.Column(db.Float, nullable=False)
-    assessments = db.relationship('Assessment', backref='subject', cascade='all, delete-orphan')
+    assessments  = db.relationship('Assessment', backref='subject', cascade='all, delete-orphan')
 
 class Assessment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    weight = db.Column(db.Float, nullable=False)
-    score = db.Column(db.Float, nullable=True)
+    __tablename__ = 'assessments'
+    id         = db.Column(db.Integer, primary_key=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
+    name       = db.Column(db.String(100), nullable=False)
+    weight     = db.Column(db.Float, nullable=False)
+    score      = db.Column(db.Float, nullable=True)
 
-try:
-    with app.app_context():
+# Create tables once
+with app.app_context():
+    try:
         db.create_all()
-        logger.info('Database tables created/verified successfully')
-except Exception as e:
-    logger.error(f'Database init error: {e}')
+        logger.info('Tables OK')
+    except Exception as exc:
+        logger.error(f'db.create_all() failed: {exc}')
 
+# ── Auth helpers ──────────────────────────────────────────────────────────────
 def login_required(f):
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'message': 'Unauthorized'}), 401
         return f(*args, **kwargs)
-    return decorated_function
+    return wrapper
 
+# ── Routes ────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/sw.js')
 def sw():
-    response = app.send_static_file('sw.js')
-    response.headers['Service-Worker-Allowed'] = '/'
-    return response
+    resp = app.send_static_file('sw.js')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
 
 @app.route('/manifest.json')
 def manifest():
     return app.send_static_file('manifest.json')
 
-@app.route('/api/check_auth', methods=['GET'])
+# ── Auth ──────────────────────────────────────────────────────────────────────
+@app.route('/api/check_auth')
 def check_auth():
-    if 'user_id' in session:
-        user = db.session.get(User, session['user_id'])
+    uid = session.get('user_id')
+    if uid:
+        user = db.session.get(User, uid)
         if user:
             return jsonify({'authenticated': True, 'user': {
-                'username': user.username, 'name': user.name, 'email': user.email,
-                'age': user.age, 'class': user.student_class, 'gender': user.gender,
-                'photo_url': user.photo_url or f"https://ui-avatars.com/api/?name={user.username}&background=random"
+                'username': user.username,
+                'name':     user.name,
+                'email':    user.email,
+                'age':      user.age,
+                'class':    user.student_class,
+                'gender':   user.gender,
+                'photo_url': user.photo_url or
+                             f'https://ui-avatars.com/api/?name={user.username}&background=e500e5&color=fff'
             }})
     return jsonify({'authenticated': False})
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    data = request.json
+    data = request.get_json(force=True)
+    if not data or not data.get('username') or not data.get('password'):
+        return jsonify({'message': 'Username and password required'}), 400
     if User.query.filter_by(username=data['username']).first():
-        return jsonify({'message': 'Username already exists'}), 400
-    hashed = generate_password_hash(data['password'])
-    new_user = User(username=data['username'], password_hash=hashed)
-    db.session.add(new_user)
+        return jsonify({'message': 'Username already taken'}), 400
+    user = User(username=data['username'],
+                password_hash=generate_password_hash(data['password']))
+    db.session.add(user)
     db.session.commit()
-    session['user_id'] = new_user.id
-    return jsonify({'message': 'Registered successfully'})
+    session['user_id'] = user.id
+    return jsonify({'message': 'Registered'})
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.json
-    user = User.query.filter_by(username=data['username']).first()
-    if user and check_password_hash(user.password_hash, data['password']):
+    data = request.get_json(force=True)
+    if not data:
+        return jsonify({'message': 'No data provided'}), 400
+    user = User.query.filter_by(username=data.get('username', '')).first()
+    if user and check_password_hash(user.password_hash, data.get('password', '')):
         session['user_id'] = user.id
-        return jsonify({'message': 'Logged in successfully'})
-    return jsonify({'message': 'Invalid credentials'}), 401
+        return jsonify({'message': 'Logged in'})
+    return jsonify({'message': 'Invalid username or password'}), 401
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    session.pop('user_id', None)
+    session.clear()
     return jsonify({'message': 'Logged out'})
 
 @app.route('/api/profile', methods=['PUT'])
 @login_required
 def update_profile():
     user = db.session.get(User, session['user_id'])
-    data = request.json
-    if 'name' in data: user.name = data['name']
-    if 'email' in data: user.email = data['email']
-    if 'age' in data: user.age = int(data['age']) if data['age'] else None
-    if 'class' in data: user.student_class = data['class']
-    if 'gender' in data: user.gender = data['gender']
-    if 'photo_url' in data: user.photo_url = data['photo_url']
+    data = request.get_json(force=True) or {}
+    user.name          = data.get('name',      user.name)
+    user.email         = data.get('email',     user.email)
+    user.student_class = data.get('class',     user.student_class)
+    user.gender        = data.get('gender',    user.gender)
+    user.photo_url     = data.get('photo_url', user.photo_url)
+    if data.get('age') not in [None, '']:
+        user.age = int(data['age'])
     db.session.commit()
     return jsonify({'message': 'Profile updated'})
 
+# ── Subjects ──────────────────────────────────────────────────────────────────
 @app.route('/api/subjects', methods=['GET'])
 @login_required
 def get_subjects():
-    subjects = Subject.query.filter_by(user_id=session['user_id']).all()
+    subs = Subject.query.filter_by(user_id=session['user_id']).all()
     result = []
-    for s in subjects:
-        assessments = s.assessments
-        current_earned = sum([(a.score * a.weight / 100) for a in assessments if a.score is not None])
-        weight_graded = sum([a.weight for a in assessments if a.score is not None])
-        weight_remaining = sum([a.weight for a in assessments if a.score is None])
-        total_weight = weight_graded + weight_remaining
-
-        current_grade = (current_earned / (weight_graded / 100)) if weight_graded > 0 else 0
-        needed_points = s.target_grade - current_earned
-        needed_avg = (needed_points / (weight_remaining / 100)) if weight_remaining > 0 else None
-
-        if weight_remaining == 0 and needed_points > 0.01:
+    for s in subs:
+        aa = s.assessments
+        earned   = sum(a.score * a.weight / 100 for a in aa if a.score is not None)
+        w_graded = sum(a.weight for a in aa if a.score is not None)
+        w_remain = sum(a.weight for a in aa if a.score is None)
+        cur_grade = (earned / (w_graded / 100)) if w_graded else 0
+        needed_pts = s.target_grade - earned
+        needed_avg = (needed_pts / (w_remain / 100)) if w_remain else None
+        if w_remain == 0 and needed_pts > 0.01:
             needed_avg = -1
-
-        sub_data = {
+        result.append({
             'id': s.id, 'name': s.name, 'target_grade': s.target_grade,
-            'current_grade': current_grade, 'weight_graded': weight_graded,
-            'weight_remaining': weight_remaining, 'total_weight': total_weight,
-            'needed_avg': needed_avg,
-            'assessments': [{'id': a.id, 'name': a.name, 'weight': a.weight, 'score': a.score} for a in assessments]
-        }
-        result.append(sub_data)
+            'current_grade': cur_grade, 'weight_graded': w_graded,
+            'weight_remaining': w_remain, 'needed_avg': needed_avg,
+            'assessments': [{'id': a.id, 'name': a.name,
+                             'weight': a.weight, 'score': a.score} for a in aa]
+        })
     return jsonify(result)
 
 @app.route('/api/subjects', methods=['POST'])
 @login_required
 def add_subject():
-    data = request.json
-    new_sub = Subject(user_id=session['user_id'], name=data['name'], target_grade=float(data['target_grade']))
-    db.session.add(new_sub)
+    data = request.get_json(force=True)
+    sub = Subject(user_id=session['user_id'],
+                  name=data['name'],
+                  target_grade=float(data['target_grade']))
+    db.session.add(sub)
     db.session.commit()
-    return jsonify({'message': 'Subject added', 'id': new_sub.id})
+    return jsonify({'id': sub.id})
 
-@app.route('/api/subjects/<int:id>', methods=['DELETE'])
+@app.route('/api/subjects/<int:sid>', methods=['DELETE'])
 @login_required
-def delete_subject(id):
-    sub = Subject.query.filter_by(id=id, user_id=session['user_id']).first()
-    if sub:
-        db.session.delete(sub)
-        db.session.commit()
-        return jsonify({'message': 'Subject deleted'})
-    return jsonify({'message': 'Not found'}), 404
+def delete_subject(sid):
+    sub = Subject.query.filter_by(id=sid, user_id=session['user_id']).first_or_404()
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({'message': 'Deleted'})
 
+# ── Assessments ───────────────────────────────────────────────────────────────
 @app.route('/api/assessments', methods=['POST'])
 @login_required
 def add_assessment():
-    data = request.json
-    sub = Subject.query.filter_by(id=data['subject_id'], user_id=session['user_id']).first()
-    if not sub:
-        return jsonify({'message': 'Subject not found'}), 404
-    new_a = Assessment(
-        subject_id=data['subject_id'], name=data['name'], weight=float(data['weight']),
+    data = request.get_json(force=True)
+    sub = Subject.query.filter_by(id=data['subject_id'],
+                                  user_id=session['user_id']).first_or_404()
+    a = Assessment(
+        subject_id=sub.id,
+        name=data['name'],
+        weight=float(data['weight']),
         score=float(data['score']) if data.get('score') not in [None, ''] else None
     )
-    db.session.add(new_a)
+    db.session.add(a)
     db.session.commit()
-    return jsonify({'message': 'Assessment added', 'id': new_a.id})
+    return jsonify({'id': a.id})
 
-@app.route('/api/assessments/<int:id>', methods=['PUT', 'DELETE'])
+@app.route('/api/assessments/<int:aid>', methods=['PUT', 'DELETE'])
 @login_required
-def manage_assessment(id):
-    a = Assessment.query.join(Subject).filter(Assessment.id == id, Subject.user_id == session['user_id']).first()
-    if not a:
-        return jsonify({'message': 'Not found'}), 404
+def manage_assessment(aid):
+    a = (Assessment.query
+         .join(Subject)
+         .filter(Assessment.id == aid, Subject.user_id == session['user_id'])
+         .first_or_404())
     if request.method == 'DELETE':
         db.session.delete(a)
         db.session.commit()
         return jsonify({'message': 'Deleted'})
-    else:
-        data = request.json
-        if 'score' in data: a.score = float(data['score']) if data['score'] not in [None, ''] else None
-        if 'weight' in data: a.weight = float(data['weight'])
-        if 'name' in data: a.name = data['name']
-        db.session.commit()
-        return jsonify({'message': 'Updated'})
+    data = request.get_json(force=True) or {}
+    if 'name'   in data: a.name   = data['name']
+    if 'weight' in data: a.weight = float(data['weight'])
+    if 'score'  in data:
+        a.score = float(data['score']) if data['score'] not in [None, ''] else None
+    db.session.commit()
+    return jsonify({'message': 'Updated'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
