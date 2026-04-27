@@ -29,37 +29,69 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners for Forms
     document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('login-username').value;
-        const password = document.getElementById('login-password').value;
-        const res = await fetch('/api/login', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username, password})
-        });
-        if (res.ok) {
-            document.getElementById('login-error').style.display = 'none';
-            checkAuth();
-        } else {
-            const data = await res.json();
-            document.getElementById('login-error').innerText = data.message;
-            document.getElementById('login-error').style.display = 'block';
+        const btn = e.target.querySelector('button[type=submit]');
+        btn.disabled = true;
+        btn.innerText = 'LOGGING IN...';
+        const errEl = document.getElementById('login-error');
+        errEl.style.display = 'none';
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: document.getElementById('login-username').value,
+                    password: document.getElementById('login-password').value
+                })
+            });
+            const text = await res.text();
+            let data;
+            try { data = JSON.parse(text); } catch { data = { message: text }; }
+            if (res.ok) {
+                checkAuth();
+            } else {
+                errEl.innerText = data.message || 'Login failed. Try again.';
+                errEl.style.display = 'block';
+            }
+        } catch (err) {
+            errEl.innerText = 'Network error: ' + err.message;
+            errEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'LOGIN';
         }
     });
 
     document.getElementById('register-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('reg-username').value;
-        const password = document.getElementById('reg-password').value;
-        const res = await fetch('/api/register', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username, password})
-        });
-        if (res.ok) {
-            document.getElementById('reg-error').style.display = 'none';
-            checkAuth();
-        } else {
-            const data = await res.json();
-            document.getElementById('reg-error').innerText = data.message;
-            document.getElementById('reg-error').style.display = 'block';
+        const btn = e.target.querySelector('button[type=submit]');
+        btn.disabled = true;
+        btn.innerText = 'REGISTERING...';
+        const errEl = document.getElementById('reg-error');
+        errEl.style.display = 'none';
+        try {
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: document.getElementById('reg-username').value,
+                    password: document.getElementById('reg-password').value
+                })
+            });
+            const text = await res.text();
+            let data;
+            try { data = JSON.parse(text); } catch { data = { message: text }; }
+            if (res.ok) {
+                checkAuth();
+            } else {
+                errEl.innerText = data.message || 'Registration failed. Try again.';
+                errEl.style.display = 'block';
+            }
+        } catch (err) {
+            errEl.innerText = 'Network error: ' + err.message;
+            errEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'REGISTER';
         }
     });
 

@@ -24,21 +24,28 @@ raw_url = os.environ.get('DATABASE_URL', '')
 
 if not raw_url:
     db_url = 'sqlite:////tmp/grades.db'
-    logger.warning('No DATABASE_URL set — using /tmp/grades.db (non-persistent)')
-elif raw_url.startswith('postgres://'):
-    db_url = raw_url.replace('postgres://', 'postgresql+pg8000://', 1)
-elif raw_url.startswith('postgresql://') and '+pg8000' not in raw_url:
-    db_url = raw_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+    use_ssl = False
+    logger.warning('No DATABASE_URL — using /tmp/grades.db (non-persistent!)')
 else:
-    db_url = raw_url
-
-logger.info(f'DB: {db_url[:40]}...')
+    # Normalise scheme so SQLAlchemy uses psycopg2
+    if raw_url.startswith('postgres://'):
+        db_url = raw_url.replace('postgres://', 'postgresql://', 1)
+    elif '+pg8000' in raw_url:
+        db_url = raw_url.replace('postgresql+pg8000://', 'postgresql://')
+    else:
+        db_url = raw_url
+    # Supabase requires SSL — append if not already present
+    if 'sslmode' not in db_url:
+        db_url += ('&' if '?' in db_url else '?') + 'sslmode=require'
+    use_ssl = True
+    logger.info(f'Using Postgres DB (SSL={use_ssl})')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 280,
+    'pool_timeout': 10,
 }
 
 db = SQLAlchemy(app)
@@ -73,11 +80,11 @@ class Assessment(db.Model):
     weight     = db.Column(db.Float, nullable=False)
     score      = db.Column(db.Float, nullable=True)
 
-# Create tables once
+# Create tables
 with app.app_context():
     try:
         db.create_all()
-        logger.info('Tables OK')
+        logger.info('DB tables ready')
     except Exception as exc:
         logger.error(f'db.create_all() failed: {exc}')
 
@@ -102,8 +109,18 @@ def sw():
     return resp
 
 @app.route('/manifest.json')
-def manifest():
+def manifest_route():
     return app.send_static_file('manifest.json')
+
+# ── Debug endpoint ─────────────────────────────────────────────────────────────
+@app.route('/api/health')
+def health():
+    """Quick health check — tells us if DB is reachable."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({'status': 'ok', 'db': 'connected'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'db': str(e)}), 500
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 @app.route('/api/check_auth')
@@ -126,28 +143,36 @@ def check_auth():
 
 @app.route('/api/register', methods=['POST'])
 def register():
-    data = request.get_json(force=True)
-    if not data or not data.get('username') or not data.get('password'):
-        return jsonify({'message': 'Username and password required'}), 400
-    if User.query.filter_by(username=data['username']).first():
-        return jsonify({'message': 'Username already taken'}), 400
-    user = User(username=data['username'],
-                password_hash=generate_password_hash(data['password']))
-    db.session.add(user)
-    db.session.commit()
-    session['user_id'] = user.id
-    return jsonify({'message': 'Registered'})
+    try:
+        data = request.get_json(force=True)
+        if not data or not data.get('username') or not data.get('password'):
+            return jsonify({'message': 'Username and password required'}), 400
+        if User.query.filter_by(username=data['username']).first():
+            return jsonify({'message': 'Username already taken'}), 400
+        user = User(username=data['username'],
+                    password_hash=generate_password_hash(data['password']))
+        db.session.add(user)
+        db.session.commit()
+        session['user_id'] = user.id
+        return jsonify({'message': 'Registered'})
+    except Exception as e:
+        logger.error(f'Register error: {e}')
+        return jsonify({'message': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.get_json(force=True)
-    if not data:
-        return jsonify({'message': 'No data provided'}), 400
-    user = User.query.filter_by(username=data.get('username', '')).first()
-    if user and check_password_hash(user.password_hash, data.get('password', '')):
-        session['user_id'] = user.id
-        return jsonify({'message': 'Logged in'})
-    return jsonify({'message': 'Invalid username or password'}), 401
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'message': 'No data received'}), 400
+        user = User.query.filter_by(username=data.get('username', '')).first()
+        if user and check_password_hash(user.password_hash, data.get('password', '')):
+            session['user_id'] = user.id
+            return jsonify({'message': 'Logged in'})
+        return jsonify({'message': 'Invalid username or password'}), 401
+    except Exception as e:
+        logger.error(f'Login error: {e}')
+        return jsonify({'message': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
