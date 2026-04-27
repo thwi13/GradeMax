@@ -1,5 +1,9 @@
 import os
 import sys
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ensure the root directory is in path so Flask can find templates/ and static/
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,19 +21,25 @@ app = Flask(__name__,
 
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-gradeflow-key')
 
-# Build database URL - support both postgres:// and postgresql://
-# Use pg8000 as pure-Python driver (no binary needed on Vercel)
-db_url = os.environ.get('DATABASE_URL', 'sqlite:///grades.db')
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+pg8000://", 1)
-elif db_url.startswith("postgresql://") and "+pg8000" not in db_url:
-    db_url = db_url.replace("postgresql://", "postgresql+pg8000://", 1)
+# Build database URL
+db_url = os.environ.get('DATABASE_URL', '')
+if not db_url:
+    # Fallback: use /tmp for SQLite on Vercel (writable directory)
+    db_url = 'sqlite:////tmp/grades.db'
+    logger.warning('DATABASE_URL not set, using /tmp/grades.db (data will not persist!)')
+elif db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql+pg8000://', 1)
+elif db_url.startswith('postgresql://') and '+pg8000' not in db_url:
+    db_url = db_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+
+logger.info(f'Using database: {db_url[:30]}...')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300,
+    'connect_args': {} if 'sqlite' in db_url else {'timeout': 10},
 }
 db = SQLAlchemy(app)
 
@@ -59,8 +69,12 @@ class Assessment(db.Model):
     weight = db.Column(db.Float, nullable=False)
     score = db.Column(db.Float, nullable=True)
 
-with app.app_context():
-    db.create_all()
+try:
+    with app.app_context():
+        db.create_all()
+        logger.info('Database tables created/verified successfully')
+except Exception as e:
+    logger.error(f'Database init error: {e}')
 
 def login_required(f):
     @wraps(f)
